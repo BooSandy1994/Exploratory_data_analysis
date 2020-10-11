@@ -1,0 +1,260 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+Make sure your data and R Markdown files are in the same directory. When loaded
+your data file will be called `brfss2013`. Delete this note when before you submit 
+your work. 
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+
+
+* * *
+
+## Part 1: Data
+
+According to the website, the data was collected by random sampling.There are 491775 observations of which 58548 completed the survey partially, which is only about 12%. Only 5, of them have `NA` as `dispcode`, which is were survey had very less fields properly responded. 
+The rest almost 87% completed the survey fully. 
+
+The data has been collected by telephone surveys or online forms. This was randomly sampled. So they can be generalized to the US population.
+
+Though there could be some people without internet or telephone.
+
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+
+In this section we are interested in finding out the relation between racial demography and high school dropouts or didn't attend high school.What we want to find out precisely is that does race really matter in case of high school dropouts or not attending high school?
+This research can be useful if a govt. needs to implement affirmative action and check the progress of the minorities.
+For this we will calculate the conditional probability of not completing high school given the person's race.    
+
+**Research quesion 2:**
+
+In this part we are interested in finding out if eating fruits and vegetables does keep general health good or not. What we are basically asking is that, is there any relation between fruit and vegetable consumption with general health? For this we will try to find out whether the variables are connected or not and if connected, how are they connected ?  
+People generally forget how important fruits and vegetables are important for our health. Here we try to address if everyone should try them to include in our diets.
+
+**Research quesion 3:**
+In this part we are interested in finding out if there is any relation between racial demography, given by, `X_racegr3` and bodymass index, given by `X_bmi5cat`. Particularly we are interested in proportions of overweights or obese people across racial demography.  
+Our main question here, Is there any dependence of "Overweights or Obese" on races ? This question's answer might address the general eating habits over the population. This can also address how health strategies should be addressed across communities. This data can also open up avenues for more research as to find out why some specific communities tend to get more overweight ? There might be some genetic component or some specific life habit that causes this. 
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+**Research quesion 1:**
+
+For this research question we will look at two variables, `X_educag`, in which we are most interested in the frequency shown by `Did not graduate high school`, and the variable `X_racegr3`, which gives us the information about the racial demography of the respondents. 
+
+Let us first check the distribution of the racial demography. We will include the data by ignoring the `NA` values. That is to say, the people who responded to both education level questions and the racial category questions. The number of non respondents of these questions are low in number compared to the total frequency of the whole dataset.
+
+Let's first check the data `X_racegr3`
+
+```{r fig.width=10, fig.height=5}
+ggplot(data=brfss2013, aes(x=X_racegr3)) + geom_histogram(stat = 'count')
+```
+
+Now let's check the data `X_educag`
+
+```{r fig.width=10, fig.height=5}
+ggplot(data=brfss2013, aes(x=X_educag)) + geom_histogram(stat = 'count', binwidth = 1)
+```
+
+Here we see that the number of `NA` values are very less compared to the actual respondent frequency. So we can safely ignore these.
+
+After ignoring the `NA` values.
+
+```{r }
+brfss2013 %>% 
+  filter(!is.na(X_educag), !is.na(X_racegr3)) %>% 
+  group_by(X_racegr3) %>% 
+  summarise(count = n())
+```
+
+Now let's also check out the education level data.
+
+```{r }
+brfss2013 %>%
+  filter(!is.na(X_educag), !is.na(X_racegr3)) %>% 
+  group_by(X_educag) %>% 
+  summarise(count = n())
+```
+
+We are most interested in the part of `Did not graduate high school` row. We need to find the segregation of this data along the racial demography. For this we create a new table where we store the counts based on races.
+
+```{r }
+tab_not_high_school <- brfss2013 %>% 
+  filter(!is.na(X_educag), !is.na(X_racegr3), X_educag == "Did not graduate high school") %>% 
+  group_by(X_racegr3) %>% 
+  summarise(count_not_graduate_h_school = n())
+tab_not_high_school
+```
+
+After this we get the total count of the racial demography, who responded to the education levels. We will ignore the `NA` values, which anyway very small in number here compared to the whole dataset.
+
+```{r }
+tot_race_edu <- brfss2013 %>%
+  filter(!is.na(X_educag), !is.na(X_racegr3)) %>% 
+  group_by(X_racegr3) %>% 
+  summarise(count_total_race = n())
+
+tot_race_edu
+```
+Now we merge the tables, `tab_not_high_school` and `tot_race_edu` so that we can compare the numbers.
+
+```{r }
+tab_not_high_school <- merge(tab_not_high_school,tot_race_edu, all=TRUE)
+
+tab_not_high_school
+```
+
+Now we calculate the conditional probability that given the race of the respondent what is probability that he/she didn't graduate high school. We put this in the variable `cond_prop_edu_race`
+
+```{r }
+tab_not_high_school <- tab_not_high_school %>% 
+  mutate(cond_prop_edu_race = count_not_graduate_h_school/count_total_race)
+
+tab_not_high_school
+```
+
+Let us visualize the results.
+
+```{r fig.width=10}
+ggplot(data = tab_not_high_school, aes(x=X_racegr3, y=cond_prop_edu_race)) + geom_point(size = 3) + geom_line(aes(group=1))
+```
+
+
+
+We see that conditional probability of not graduating high school varies largely across the races.The Hispanic and the Black population tend to show high probability of not graduating from high school. This data can only be generalized among the population who own telephones.
+
+
+**Research quesion 2:**
+
+For this we will look at the variable `X_rfhlth`, which signifies health in two different categories, as `Good or Better Health` and `Fair or Poor Health`. We will also compare this with the variable, `X_frtlt1`, which tells us whether fruit consumption is one or more than one per day or not  and `X_veglt1` which tells us whether vegetables consumption is one or more than per day or not.
+
+
+Now we will check the responses of `X_rfhlth` and check how it is distributed.
+
+```{r }
+ggplot(data = brfss2013, aes(x=X_rfhlth)) + geom_histogram(stat = "count")
+```
+
+We see that most of the respondents report that their health is `Good or Better Health`.
+Here in this research question we are exploring consumption of fruits and vegetables both. Let's see how these variables combined are distributed. For this we will use the `group_by` and `summarise` functions.
+
+```{r }
+brfss2013 %>% 
+  filter(!is.na(X_rfhlth), !is.na(X_frtlt1), !is.na(X_veglt1)) %>% 
+  group_by( X_frtlt1, X_veglt1) %>% 
+  summarise(count = n())
+```
+
+We see that a good number of people respond that they consume fruits and vegetables one or more times a day.
+Now we will create a new table, which will store, the counts of people who reported `Good or Better Health`, grouped by fruit and vegetable consumption scenarios.
+
+```{r }
+gd_hlth_frt_veg <- brfss2013 %>%
+  filter(!is.na(X_rfhlth), !is.na(X_frtlt1), !is.na(X_veglt1), X_rfhlth == "Good or Better Health") %>%
+  group_by( X_frtlt1, X_veglt1) %>%
+  summarise(count_gd_heath = n())
+
+gd_hlth_frt_veg
+```
+
+For this research question what we are trying to calculate is conditional probability of `Good or Better Health` given the different scenarios of fruit and vegetable consumption. So we need the total counts of fruit and vegetable consumption irrespective of health. So for this we will create another table which will store the total counts.
+
+```{r}
+total_frt_veg <- brfss2013 %>%
+  filter(!is.na(X_rfhlth), !is.na(X_frtlt1), !is.na(X_veglt1)) %>%
+  group_by( X_frtlt1, X_veglt1) %>% 
+  summarise(total_count = n())
+
+total_frt_veg
+```
+
+After this we merge the two tables so that the information is there in one single table and make our subsequent calculation easier.
+
+```{r }
+gd_hlth_frt_veg <- merge(gd_hlth_frt_veg,total_frt_veg, all = TRUE)
+gd_hlth_frt_veg 
+```
+
+Now we will get the conditional probability of `Good or Better Health` given the different scenarios of fruit and vegetable consumption.
+
+```{r }
+gd_hlth_frt_veg <- gd_hlth_frt_veg %>% mutate(cond_prop = count_gd_heath/total_count)
+gd_hlth_frt_veg
+```
+
+The data does show that there is dependence between general health and fruit-vegetable consumption trends. The data shows that if people add fruits and vegetable to their diets they tend to have `Good or Better Heatlh`. This conclusion is derived from randomly sampled data so these are mere observations. They don't show any causality. There is more like the the question of generality among the population owning telephones.
+
+**Research quesion 3:**
+At first we check how the respondents are distributed in the collected data. For this we will be using the varible `X_racegr3`.
+
+```{r fig.width=10}
+ggplot(data = brfss2013, aes(x=X_racegr3)) + geom_histogram(stat = 'count')
+```
+
+We see that most of the respondents are white. So in order to find any relation between race and BMI we need to see them in probabilities.Now to check the probability of obese or overweight given that people's race is known. At first we create a new variable in `brfss2013` table, named `is_Ovrwt_or_Obese` which will mark `YES` if the person is `Overweight` or `Obese` and `NO` otherwise. 
+
+Then we check the person's `is_Ovrwt_or_Obese` responses, all the `YES` counts are stored in the `check_race_bmi` which gives the absolute frequency and segregates them according to race.
+
+```{r}
+brfss2013 <- brfss2013 %>% mutate(is_Ovrwt_or_Obese = ifelse(X_bmi5cat=='Overweight'|X_bmi5cat=='Obese',"YES","NO"))
+
+check_race_bmi <- brfss2013 %>% filter(!is.na(dispcode), !is.na(X_racegr3),!is.na(is_Ovrwt_or_Obese), is_Ovrwt_or_Obese == "YES") %>% group_by(X_racegr3,is_Ovrwt_or_Obese) %>% summarise(count = n())
+
+```
+
+The above creates a table which shows, racial variability counts for BMI being `obese` or `overweight`. So let's view the table. 
+
+```{r fig.width=10}
+check_race_bmi
+ggplot(data = check_race_bmi, aes(x = X_racegr3, y = count)) + geom_point(size=3)+ geom_line(aes(group=1))
+```
+
+
+Now we need to gather the total counts according to the racial variabilty of those responded and store them in a new table named `total_race`.
+
+```{r }
+total_race <- brfss2013 %>% filter(!is.na(dispcode), !is.na(X_racegr3), !is.na(X_bmi5cat)) %>% group_by(X_racegr3) %>% summarise(total_count = n())
+
+total_race
+```
+
+After this we will merge both the tables `check_race_bmi` and the `total_race` so that the numbers and counts can be compared.
+
+```{r }
+check_race_bmi <- merge(check_race_bmi, total_race, all = TRUE)
+check_race_bmi
+```
+
+Now we calculate the conditional probabilty of finding a person `Obese` or `Overweight` given that his race is known.
+```{r fig.width=10}
+check_race_bmi <-  check_race_bmi %>% group_by(X_racegr3) %>% mutate(cond_prop = count/total_count)
+check_race_bmi
+ggplot(data = check_race_bmi, aes(x = X_racegr3, y = cond_prop)) + geom_point(size=3)+ geom_line(aes(group=1))
+```
+
+We do see some racial variability in the data. As the demography varies largely in the dataset, we tend to see obesity and overweight do depend on race. Although the overall data does have some bias according to the availability of telephone, the result might be generalized among the people who own telephones.
